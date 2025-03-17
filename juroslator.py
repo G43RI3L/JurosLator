@@ -33,5 +33,9 @@ def main():
     else:
         print("Opção inválida. Por favor, escolha 1 ou 2.")
 
+
+#aqui vai comecar a comparação com taxas de juros padrões, no futuro será com indices públicos
+
+
 if __name__ == "__main__":
     main()
