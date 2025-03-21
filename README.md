@@ -6,3 +6,5 @@ Being able to save the applications of interests and compare them to public inde
 With time being capable of show the progress of each investment after the inflation and IRS.
 
 Connected with your calendar account so that when the day of paycheck comes the user get a notification.
+
+I would really appreciate some help! best regards 
