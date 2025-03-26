@@ -41,5 +41,5 @@ if __name__ == '__main__':
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))  # Usa a porta do Render
-    app.run(host="0.0.0.0", port=port)  # Executa o Flask corretamente
+    port = int(os.environ.get("PORT", 10000))  # Defina uma porta alta para evitar conflitos
+    app.run(host="0.0.0.0", port=port)
