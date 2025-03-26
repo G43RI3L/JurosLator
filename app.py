@@ -1,6 +1,7 @@
 # Importando bibliotecas necessárias
 from flask import Flask, request, jsonify  # Flask para criar a API
 from flask_cors import CORS  # Permite requisições de outras origens (ex: frontend)
+import os  
 
 # Criando a aplicação Flask
 app = Flask(__name__)
@@ -37,3 +38,9 @@ def calcular():
 # Executa o servidor Flask em modo debug
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))  # Define a porta do Render
+    app.run(host="0.0.0.0", port=port, debug=True)
