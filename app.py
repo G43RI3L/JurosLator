@@ -1,7 +1,9 @@
 # Importando bibliotecas necessárias
+import os  
 from flask import Flask, request, jsonify  # Flask para criar a API
 from flask_cors import CORS  # Permite requisições de outras origens (ex: frontend)
-import os  
+
+
 
 # Criando a aplicação Flask
 app = Flask(__name__)
