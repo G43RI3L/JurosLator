@@ -20,30 +20,31 @@
     <button onclick="calcular()">Calcular</button>
 
     <h3 id="resultado"></h3>
-
     <script>
         async function calcular() {
             let principal = parseFloat(document.getElementById("principal").value);
             let taxa = parseFloat(document.getElementById("taxa").value);
             let tempo = parseFloat(document.getElementById("tempo").value);
-
+    
             if (!principal || !taxa || !tempo) {
                 alert("Preencha todos os campos!");
                 return;
             }
-
+    
             let resposta = await fetch("https://juroslator.onrender.com/calcular", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ principal, taxa, tempo })
             });
-
+    
             let dados = await resposta.json();
             document.getElementById("resultado").innerHTML = `
                 Juros: R$ ${dados.juros.toFixed(2)}<br>
-                Montante final: R$ ${dados.montante_final.toFixed(2)}
+                Montante final: R$ ${dados.montante_final.toFixed(2)}<br>
+                <strong>${dados.comparacao_selic}</strong>
             `;
         }
     </script>
+    
 </body>
 </html>
