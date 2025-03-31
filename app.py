@@ -1,47 +1,130 @@
 import os
+import json
 import requests
 from flask import Flask, request, jsonify
-from flask_cors import CORS  # Importando o CORS corretamente
+from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # Permite requisições de qualquer origem (GitHub Pages, etc.)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-@app.route('/')
-def home():
-    return "API Flask funcionando no Render!"
+# Arquivo JSON para armazenar usuários e histórico
+DB_FILE = "usuarios.json"
 
-@app.route('/calcular', methods=['POST'])
-def calcular():
+# Função para carregar os dados do JSON
+def carregar_dados():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r") as file:
+            try:
+                return json.load(file)
+            except json.JSONDecodeError:
+                return {}
+    return {}
+
+# Função para salvar os dados no JSON
+def salvar_dados(dados):
+    with open(DB_FILE, "w") as file:
+        json.dump(dados, file, indent=4)
+
+# Criar conta ou fazer login
+@app.route('/login', methods=['POST'])
+def login():
+    """
+    Endpoint para criar ou logar um usuário.
+    Espera um JSON com {"usuario": "nome", "senha": "senha"}.
+    Se o usuário não existir, cria um novo.
+    """
     dados = request.json
-    principal = float(dados['principal'])
-    taxa = float(dados['taxa']) / 100
-    tempo = int(dados['tempo'])
+    usuario = dados.get("usuario")
+    senha = dados.get("senha")
 
-    montante = principal * (1 + taxa) ** tempo
-    juros = montante - principal
+    if not usuario or not senha:
+        return jsonify({"erro": "Usuário e senha são obrigatórios!"}), 400
 
-    taxa_selic = obter_taxa_selic()
+    db = carregar_dados()
 
-    if taxa_selic is not None:
-        montante_selic = principal * (1 + taxa_selic) ** tempo
-        diferenca = ((montante / montante_selic) - 1) * 100
-        comparacao = f"Seu investimento foi {diferenca:.2f}% melhor que a SELIC." if diferenca > 0 else f"Seu investimento foi {abs(diferenca):.2f}% pior que a SELIC."
+    # Se o usuário já existe
+    if usuario in db:
+        if db[usuario]["senha"] != senha:
+            return jsonify({"erro": "Senha incorreta!"}), 401
     else:
-        comparacao = "Não foi possível obter a taxa SELIC no momento."
+        # Criando novo usuário
+        db[usuario] = {"senha": senha, "historico": []}
+        salvar_dados(db)
 
-    return jsonify({
-        "juros": round(juros, 2),
-        "montante_final": round(montante, 2),
-        "comparacao_selic": comparacao
-    })
+    return jsonify({"mensagem": "Login bem-sucedido!", "usuario": usuario})
 
-def obter_taxa_selic():
-    url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados/ultimos/1?formato=json"
+# Salvar aplicação no histórico do usuário
+@app.route('/salvar', methods=['POST'])
+def salvar():
+    """
+    Salva uma aplicação no histórico do usuário.
+    Espera um JSON com {"usuario": "nome", "dados": {...detalhes da aplicação...}}.
+    """
+    dados = request.json
+    usuario = dados.get("usuario")
+    dados_aplicacao = dados.get("dados")
+
+    db = carregar_dados()
+    if usuario not in db:
+        return jsonify({"erro": "Usuário não encontrado!"}), 404
+
+    db[usuario]["historico"].append(dados_aplicacao)
+    salvar_dados(db)
+    
+    return jsonify({"mensagem": "Aplicação salva com sucesso!"})
+
+# Obter histórico de um usuário
+@app.route('/historico/<usuario>', methods=['GET'])
+def historico(usuario):
+    """
+    Retorna o histórico de aplicações do usuário.
+    """
+    db = carregar_dados()
+    if usuario not in db:
+        return jsonify({"erro": "Usuário não encontrado!"}), 404
+
+    return jsonify({"historico": db[usuario]["historico"]})
+
+# Apagar uma aplicação do histórico
+@app.route('/apagar', methods=['POST'])
+def apagar():
+    """
+    Remove uma aplicação específica do histórico.
+    Espera um JSON com {"usuario": "nome", "indice": índice da aplicação}.
+    """
+    dados = request.json
+    usuario = dados.get("usuario")
+    indice = dados.get("indice")
+
+    db = carregar_dados()
+    if usuario not in db:
+        return jsonify({"erro": "Usuário não encontrado!"}), 404
+
     try:
-        resposta = requests.get(url).json()
-        return float(resposta[0]["valor"]) / 100
-    except:
-        return None
+        db[usuario]["historico"].pop(indice)
+        salvar_dados(db)
+        return jsonify({"mensagem": "Aplicação apagada com sucesso!"})
+    except IndexError:
+        return jsonify({"erro": "Índice inválido!"}), 400
+
+# Apagar todo o histórico
+@app.route('/resetar', methods=['POST'])
+def resetar():
+    """
+    Remove todas as aplicações do usuário.
+    Espera um JSON com {"usuario": "nome"}.
+    """
+    dados = request.json
+    usuario = dados.get("usuario")
+
+    db = carregar_dados()
+    if usuario not in db:
+        return jsonify({"erro": "Usuário não encontrado!"}), 404
+
+    db[usuario]["historico"] = []
+    salvar_dados(db)
+
+    return jsonify({"mensagem": "Histórico resetado!"})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))

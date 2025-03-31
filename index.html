@@ -6,54 +6,76 @@
     <title>Simulação Financeira</title>
 </head>
 <body>
-    <h2>Simulação Financeira</h2>
+    <h2>Login</h2>
+    <input type="text" id="usuario" placeholder="Usuário">
+    <input type="password" id="senha" placeholder="Senha">
+    <button onclick="login()">Entrar</button>
     
+    <h2>Simulação Financeira</h2>
     <label>Valor inicial:</label>
     <input type="number" id="principal"><br>
-    
     <label>Taxa de juros (%):</label>
     <input type="number" id="taxa"><br>
-    
     <label>Tempo (meses):</label>
     <input type="number" id="tempo"><br>
-    
     <button onclick="calcular()">Calcular</button>
 
     <h3 id="resultado"></h3>
+    <h3 id="comparacao"></h3>
+
+    <h2>Histórico de Aplicações</h2>
+    <button onclick="verHistorico()">Ver Histórico</button>
+    <div id="historico"></div>
+
     <script>
+        let usuarioAtual = "";
+
+        async function login() {
+            let usuario = document.getElementById("usuario").value;
+            let senha = document.getElementById("senha").value;
+
+            let resposta = await fetch("https://juroslator.onrender.com/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ usuario, senha })
+            });
+
+            let dados = await resposta.json();
+            if (dados.mensagem) {
+                usuarioAtual = usuario;
+                alert("Login bem-sucedido!");
+            } else {
+                alert("Erro: " + dados.erro);
+            }
+        }
+
         async function calcular() {
             let principal = parseFloat(document.getElementById("principal").value);
             let taxa = parseFloat(document.getElementById("taxa").value);
             let tempo = parseFloat(document.getElementById("tempo").value);
-    
-            if (!principal || !taxa || !tempo) {
-                alert("Preencha todos os campos!");
-                return;
-            }
-    
-            try {
-                let resposta = await fetch("https://juroslator.onrender.com/calcular", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ principal, taxa, tempo })
-                });
-    
-                if (!resposta.ok) {
-                    throw new Error("Erro ao acessar a API");
-                }
-    
-                let dados = await resposta.json();
-                document.getElementById("resultado").innerHTML = `
-                    Juros: R$ ${dados.juros.toFixed(2)}<br>
-                    Montante final: R$ ${dados.montante_final.toFixed(2)}<br>
-                    <strong>${dados.comparacao_selic}</strong>
-                `;
-            } catch (error) {
-                document.getElementById("resultado").innerHTML = "Erro ao conectar com a API.";
-            }
+
+            let resposta = await fetch("https://juroslator.onrender.com/calcular", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ principal, taxa, tempo })
+            });
+
+            let dados = await resposta.json();
+            document.getElementById("resultado").innerHTML = `Juros: R$ ${dados.juros.toFixed(2)}<br>Montante final: R$ ${dados.montante_final.toFixed(2)}<br>${dados.comparacao_selic}`;
+
+            // Salvar no histórico
+            fetch("https://juroslator.onrender.com/salvar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ usuario: usuarioAtual, dados })
+            });
+        }
+
+        async function verHistorico() {
+            let resposta = await fetch(`https://juroslator.onrender.com/historico/${usuarioAtual}`);
+            let dados = await resposta.json();
+            document.getElementById("historico").innerHTML = JSON.stringify(dados.historico, null, 2);
         }
     </script>
-    
-    
 </body>
 </html>
