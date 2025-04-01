@@ -30,7 +30,8 @@ class Calculation(db.Model):
     selic_diferenca = db.Column(db.Float, nullable=False)
 
 # Criar Banco de Dados
-db.create_all()
+with app.app_context():
+    db.create_all()
 
 # Rota de Registro
 @app.route('/register', methods=['POST'])

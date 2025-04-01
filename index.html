@@ -3,25 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - JurosLator</title>
-    <script defer src="script.js"></script>
+    <title>Simulação Financeira</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <h2>Bem-vindo ao JurosLator</h2>
-    <div id="login-container">
-        <h3>Login</h3>
-        <input type="text" id="login-usuario" placeholder="Usuário"><br>
-        <input type="password" id="login-senha" placeholder="Senha"><br>
-        <button onclick="fazerLogin()">Entrar</button>
-        <p>Não tem conta? <a href="#" onclick="mostrarCadastro()">Cadastre-se</a></p>
-    </div>
+    <h2>Simulação Financeira</h2>
+    <label>Valor inicial:</label>
+    <input type="number" id="principal"><br>
+    <label>Taxa de juros (%):</label>
+    <input type="number" id="taxa"><br>
+    <label>Tempo (meses):</label>
+    <input type="number" id="tempo"><br>
+    <button onclick="calcular()">Calcular</button>
+    <h3 id="resultado"></h3>
+    <h3 id="comparacao"></h3>
     
-    <div id="cadastro-container" style="display: none;">
-        <h3>Cadastro</h3>
-        <input type="text" id="cadastro-usuario" placeholder="Usuário"><br>
-        <input type="password" id="cadastro-senha" placeholder="Senha"><br>
-        <button onclick="fazerCadastro()">Cadastrar</button>
-        <p>Já tem conta? <a href="#" onclick="mostrarLogin()">Faça login</a></p>
-    </div>
+    <canvas id="grafico"></canvas>
+    
+    <script>
+        async function calcular() {
+            let principal = parseFloat(document.getElementById("principal").value);
+            let taxa = parseFloat(document.getElementById("taxa").value) / 100;
+            let tempo = parseFloat(document.getElementById("tempo").value);
+
+            if (!principal || !taxa || !tempo) {
+                alert("Preencha todos os campos!");
+                return;
+            }
+
+            let resposta = await fetch("https://SEU_BACKEND_RENDER_URL/calcular", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ principal, taxa, tempo })
+            });
+            
+            let dados = await resposta.json();
+            document.getElementById("resultado").innerHTML = `Montante Final: R$ ${dados.montante_final.toFixed(2)}`;
+
+            let selic = await fetch("https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados/ultimos/1?formato=json")
+                .then(response => response.json())
+                .then(data => parseFloat(data[0]["valor"]) / 100)
+                .catch(() => null);
+
+            if (selic) {
+                let montante_selic = principal * (1 + selic) ** tempo;
+                let diferenca = ((dados.montante_final / montante_selic) - 1) * 100;
+                document.getElementById("comparacao").innerHTML = `Comparação com SELIC: ${diferenca.toFixed(2)}%`;
+            }
+            carregarHistorico();
+        }
+
+        async function carregarHistorico() {
+            let resposta = await fetch("https://SEU_BACKEND_RENDER_URL/historico");
+            let dados = await resposta.json();
+            
+            let labels = dados.map(d => d.data);
+            let valores = dados.map(d => d.montante_final);
+            
+            let ctx = document.getElementById("grafico").getContext("2d");
+            new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "Evolução do Montante",
+                        data: valores,
+                        borderColor: "blue",
+                        fill: false
+                    }]
+                }
+            });
+        }
+        carregarHistorico();
+    </script>
 </body>
 </html>
