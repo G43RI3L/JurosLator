@@ -1,0 +1,30 @@
+[
+    {
+        "tipo": "Juros Simples",
+        "principal": 20000.0,
+        "taxa": 0.07,
+        "tempo": 6.0,
+        "juros": 8400.000000000002,
+        "montante_final": 28400.0,
+        "mensal": 1400.0000000000002
+    },
+    {
+        "tipo": "Juros Compostos",
+        "principal": 5000.0,
+        "taxa": 0.07,
+        "tempo": 3.0,
+        "juros": 1125.2150000000001,
+        "montante_final": 6125.215,
+        "mensal": 375.0716666666667
+    },
+    {
+        "tipo": "Juros Simples",
+        "principal": 1000.0,
+        "taxa": 0.1,
+        "tempo": 10.0,
+        "juros": 1000.0,
+        "montante_final": 2000.0,
+        "mensal": 100.0,
+        "comparacao_selic": "Seu investimento foi 98.95% melhor que a SELIC."
+    }
+]

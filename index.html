@@ -3,79 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulação Financeira</title>
+    <title>Login - JurosLator</title>
+    <script defer src="script.js"></script>
 </head>
 <body>
-    <h2>Login</h2>
-    <input type="text" id="usuario" placeholder="Usuário">
-    <input type="password" id="senha" placeholder="Senha">
-    <button onclick="login()">Entrar</button>
+    <h2>Bem-vindo ao JurosLator</h2>
+    <div id="login-container">
+        <h3>Login</h3>
+        <input type="text" id="login-usuario" placeholder="Usuário"><br>
+        <input type="password" id="login-senha" placeholder="Senha"><br>
+        <button onclick="fazerLogin()">Entrar</button>
+        <p>Não tem conta? <a href="#" onclick="mostrarCadastro()">Cadastre-se</a></p>
+    </div>
     
-    <h2>Simulação Financeira</h2>
-    <label>Valor inicial:</label>
-    <input type="number" id="principal"><br>
-    <label>Taxa de juros (%):</label>
-    <input type="number" id="taxa"><br>
-    <label>Tempo (meses):</label>
-    <input type="number" id="tempo"><br>
-    <button onclick="calcular()">Calcular</button>
-
-    <h3 id="resultado"></h3>
-    <h3 id="comparacao"></h3>
-
-    <h2>Histórico de Aplicações</h2>
-    <button onclick="verHistorico()">Ver Histórico</button>
-    <div id="historico"></div>
-
-    <script>
-        let usuarioAtual = "";
-
-        async function login() {
-            let usuario = document.getElementById("usuario").value;
-            let senha = document.getElementById("senha").value;
-
-            let resposta = await fetch("https://juroslator.onrender.com/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ usuario, senha })
-            });
-
-            let dados = await resposta.json();
-            if (dados.mensagem) {
-                usuarioAtual = usuario;
-                alert("Login bem-sucedido!");
-            } else {
-                alert("Erro: " + dados.erro);
-            }
-        }
-
-        async function calcular() {
-            let principal = parseFloat(document.getElementById("principal").value);
-            let taxa = parseFloat(document.getElementById("taxa").value);
-            let tempo = parseFloat(document.getElementById("tempo").value);
-
-            let resposta = await fetch("https://juroslator.onrender.com/calcular", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ principal, taxa, tempo })
-            });
-
-            let dados = await resposta.json();
-            document.getElementById("resultado").innerHTML = `Juros: R$ ${dados.juros.toFixed(2)}<br>Montante final: R$ ${dados.montante_final.toFixed(2)}<br>${dados.comparacao_selic}`;
-
-            // Salvar no histórico
-            fetch("https://juroslator.onrender.com/salvar", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ usuario: usuarioAtual, dados })
-            });
-        }
-
-        async function verHistorico() {
-            let resposta = await fetch(`https://juroslator.onrender.com/historico/${usuarioAtual}`);
-            let dados = await resposta.json();
-            document.getElementById("historico").innerHTML = JSON.stringify(dados.historico, null, 2);
-        }
-    </script>
+    <div id="cadastro-container" style="display: none;">
+        <h3>Cadastro</h3>
+        <input type="text" id="cadastro-usuario" placeholder="Usuário"><br>
+        <input type="password" id="cadastro-senha" placeholder="Senha"><br>
+        <button onclick="fazerCadastro()">Cadastrar</button>
+        <p>Já tem conta? <a href="#" onclick="mostrarLogin()">Faça login</a></p>
+    </div>
 </body>
 </html>

@@ -1,121 +1,103 @@
-import json
-import os
-import requests  # Biblioteca para fazer requisições HTTP
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from datetime import timedelta
 
-# Nome do arquivo onde vamos salvar as aplicações registradas
-ARQUIVO_HISTORICO = "historico_aplicacoes.json"
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'  # Pode ser alterado para PostgreSQL no Render
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = 'sua_chave_secreta'
 
-def obter_taxa_selic():
-    """ Obtém automaticamente a taxa SELIC atual do Banco Central. """
-    url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados/ultimos/1?formato=json"
-    try:
-        resposta = requests.get(url).json()
-        return float(resposta[0]["valor"]) / 100  # Convertendo para formato decimal
-    except:
-        return None  # Retorna None caso haja erro na requisição
+# Inicializando módulos
+db = SQLAlchemy(app)
+bcrypt = Bcrypt(app)
+jwt = JWTManager(app)
 
-def salvar_aplicacao(tipo, principal, taxa, tempo, juros, montante_final, mensal, selic_comparacao):
-    """ Salva os dados da aplicação no arquivo JSON para manter histórico. """
-    nova_entrada = {
-        "tipo": tipo,
-        "principal": principal,
-        "taxa": taxa,
-        "tempo": tempo,
-        "juros": juros,
-        "montante_final": montante_final,
-        "mensal": mensal,
-        "comparacao_selic": selic_comparacao
-    }
+# Modelos do Banco de Dados
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(100), nullable=False)
 
-    # Se o arquivo já existir, carrega os dados, senão cria um novo histórico
-    historico = []
-    if os.path.exists(ARQUIVO_HISTORICO):
-        with open(ARQUIVO_HISTORICO, "r") as file:
-            try:
-                historico = json.load(file)
-            except json.JSONDecodeError:
-                pass  # Caso o arquivo esteja vazio ou com erro, ignora
+class Calculation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    principal = db.Column(db.Float, nullable=False)
+    taxa = db.Column(db.Float, nullable=False)
+    tempo = db.Column(db.Integer, nullable=False)
+    montante = db.Column(db.Float, nullable=False)
+    selic_diferenca = db.Column(db.Float, nullable=False)
 
-    # Adiciona a nova aplicação ao histórico e salva no arquivo
-    historico.append(nova_entrada)
-    with open(ARQUIVO_HISTORICO, "w") as file:
-        json.dump(historico, file, indent=4)
+# Criar Banco de Dados
+db.create_all()
 
-def calcular_juros_simples(principal, taxa, tempo):
-    """ Calcula os juros simples com a fórmula J = P * i * t. """
-    juros = principal * taxa * tempo
-    montante_final = principal + juros
-    mensal = juros / tempo
-    return juros, montante_final, mensal
+# Rota de Registro
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.json
+    hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
+    new_user = User(username=data['username'], password=hashed_password)
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify({'message': 'Usuário registrado com sucesso!'})
 
-def calcular_juros_compostos(principal, taxa, tempo):
-    """ Calcula os juros compostos com a fórmula M = P(1 + i)^t. """
-    montante_final = principal * (1 + taxa) ** tempo
-    juros = montante_final - principal
-    mensal = juros / tempo
-    return juros, montante_final, mensal
+# Rota de Login
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    user = User.query.filter_by(username=data['username']).first()
+    if user and bcrypt.check_password_hash(user.password, data['password']):
+        access_token = create_access_token(identity=user.id, expires_delta=timedelta(hours=1))
+        return jsonify({'token': access_token})
+    return jsonify({'message': 'Credenciais inválidas'}), 401
 
-def comparar_com_selic(montante_final, principal, tempo):
-    """ Compara os rendimentos com a taxa SELIC para dizer se foi um investimento melhor ou pior. """
-    taxa_selic = obter_taxa_selic()
-    if taxa_selic is None:
-        return "Não foi possível obter a taxa SELIC."
+# Rota para Cálculo e Armazenamento
+@app.route('/calcular', methods=['POST'])
+@jwt_required()
+def calcular():
+    data = request.json
+    user_id = get_jwt_identity()
+    principal = data['principal']
+    taxa = data['taxa'] / 100
+    tempo = data['tempo']
+    montante = principal * (1 + taxa) ** tempo
+    
+    # Comparação com SELIC
+    selic_taxa = 0.1325  # Exemplo fixo, substituir por taxa dinâmica depois
+    montante_selic = principal * (1 + selic_taxa) ** tempo
+    selic_diferenca = ((montante / montante_selic) - 1) * 100
+    
+    new_calc = Calculation(user_id=user_id, principal=principal, taxa=data['taxa'], tempo=tempo, 
+                           montante=montante, selic_diferenca=selic_diferenca)
+    db.session.add(new_calc)
+    db.session.commit()
+    
+    return jsonify({'montante_final': montante, 'comparacao_selic': selic_diferenca})
 
-    # Simulação de investimento com SELIC
-    montante_selic = principal * (1 + taxa_selic) ** tempo
-    diferenca = ((montante_final / montante_selic) - 1) * 100  # Diferença percentual
+# Rota para Recuperar Histórico
+@app.route('/historico', methods=['GET'])
+@jwt_required()
+def historico():
+    user_id = get_jwt_identity()
+    historico = Calculation.query.filter_by(user_id=user_id).all()
+    historico_lista = [{
+        'id': h.id, 'principal': h.principal, 'taxa': h.taxa,
+        'tempo': h.tempo, 'montante': h.montante, 'selic_diferenca': h.selic_diferenca
+    } for h in historico]
+    return jsonify(historico_lista)
 
-    if diferenca > 0:
-        return f"Seu investimento foi {diferenca:.2f}% melhor que a SELIC."
-    else:
-        return f"Seu investimento foi {abs(diferenca):.2f}% pior que a SELIC."
+# Rota para Excluir Cálculo
+@app.route('/delete/<int:calc_id>', methods=['DELETE'])
+@jwt_required()
+def delete(calc_id):
+    user_id = get_jwt_identity()
+    calc = Calculation.query.filter_by(id=calc_id, user_id=user_id).first()
+    if not calc:
+        return jsonify({'message': 'Cálculo não encontrado'}), 404
+    db.session.delete(calc)
+    db.session.commit()
+    return jsonify({'message': 'Cálculo removido com sucesso'})
 
-def main():
-    """ Menu principal para calcular juros e visualizar o histórico. """
-    while True:
-        print("\nCalculadora de Juros")
-        print("1. Juros Simples")
-        print("2. Juros Compostos")
-        print("3. Ver Histórico de Aplicações")
-        print("4. Sair")
-        escolha = input("Digite uma opção (1-4): ")
-
-        if escolha == "4":
-            print("Saindo... Obrigado!")
-            break
-
-        if escolha == "3":
-            with open(ARQUIVO_HISTORICO, "r") as file:
-                print(json.dumps(json.load(file), indent=4))
-            continue
-
-        if escolha not in ["1", "2"]:
-            print("Opção inválida.")
-            continue
-
-        # Entrada de dados
-        principal = float(input("Valor inicial: "))
-        taxa = float(input("Taxa de juros (%): ")) / 100
-        tempo = float(input("Tempo (meses): "))
-
-        # Escolha entre juros simples e compostos
-        if escolha == "1":
-            juros, montante_final, mensal = calcular_juros_simples(principal, taxa, tempo)
-            tipo = "Juros Simples"
-        else:
-            juros, montante_final, mensal = calcular_juros_compostos(principal, taxa, tempo)
-            tipo = "Juros Compostos"
-
-        # Comparação com SELIC
-        comparacao = comparar_com_selic(montante_final, principal, tempo)
-
-        print(f"\n🔹 {tipo}:")
-        print(f"Juros: R$ {juros:.2f}")
-        print(f"Montante final: R$ {montante_final:.2f}")
-        print(f"Comparação com SELIC: {comparacao}")
-
-        # Salvar no histórico
-        salvar_aplicacao(tipo, principal, taxa, tempo, juros, montante_final, mensal, comparacao)
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=10000)  # Porta configurável para Render
